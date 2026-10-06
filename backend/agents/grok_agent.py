@@ -331,16 +331,10 @@ Confidence guidelines:
         retrieved_knowledge: list[dict[str, Any]],
     ) -> str:
         """
-        Format retrieved knowledge according to the shared contract.
+        Format retrieval results for the LLM.
 
-        Expected retriever fields:
-            text
-            source_title
-            source_url
-            page
-            section
-            relevance_score
-            domain
+        Supports the shared contract fields and the actual
+        fields currently returned by Member 3's retriever.
         """
 
         chunks: list[str] = []
@@ -349,14 +343,19 @@ Confidence guidelines:
             retrieved_knowledge,
             start=1,
         ):
+            # Shared contract field.
+            # Fallback supports older/test data.
             text = chunk.get(
                 "text",
-                "",
+                chunk.get("chunk_text", ""),
             )
 
             source_title = chunk.get(
                 "source_title",
-                "Unknown source",
+                chunk.get(
+                    "document_name",
+                    "Unknown source",
+                ),
             )
 
             source_url = chunk.get(
@@ -371,12 +370,16 @@ Confidence guidelines:
                 "section",
             )
 
+            # Member 3 currently returns "score".
             relevance_score = chunk.get(
                 "relevance_score",
+                chunk.get("score"),
             )
 
+            # Member 3 currently returns "retrieved_domain".
             domain = chunk.get(
                 "domain",
+                chunk.get("retrieved_domain"),
             )
 
             chunks.append(
