@@ -331,7 +331,16 @@ Confidence guidelines:
         retrieved_knowledge: list[dict[str, Any]],
     ) -> str:
         """
-        Convert retrieval results into readable LLM context.
+        Format retrieved knowledge according to the shared contract.
+
+        Expected retriever fields:
+            text
+            source_title
+            source_url
+            page
+            section
+            relevance_score
+            domain
         """
 
         chunks: list[str] = []
@@ -340,24 +349,60 @@ Confidence guidelines:
             retrieved_knowledge,
             start=1,
         ):
+            text = chunk.get(
+                "text",
+                "",
+            )
+
+            source_title = chunk.get(
+                "source_title",
+                "Unknown source",
+            )
+
+            source_url = chunk.get(
+                "source_url",
+            )
+
+            page = chunk.get(
+                "page",
+            )
+
+            section = chunk.get(
+                "section",
+            )
+
+            relevance_score = chunk.get(
+                "relevance_score",
+            )
+
+            domain = chunk.get(
+                "domain",
+            )
+
             chunks.append(
                 f"""
 --- Retrieved Chunk {index} ---
 
-Document:
-{chunk.get("document_name", "Unknown document")}
+Domain:
+{domain}
 
-Page:
-{chunk.get("page")}
-
-Section:
-{chunk.get("section")}
+Source title:
+{source_title}
 
 Source URL:
-{chunk.get("source_url")}
+{source_url}
+
+Page:
+{page}
+
+Section:
+{section}
+
+Relevance score:
+{relevance_score}
 
 Content:
-{chunk.get("chunk_text", "")}
+{text}
 """.strip()
             )
 

@@ -29,7 +29,7 @@ def make_fake_groq_response(
     sources: list[dict] | None = None,
 ):
     """
-    Build a fake Groq SDK response matching the structure
+    Create a fake Groq response matching the structure
     expected by GroqDomainAgent.
     """
 
@@ -50,13 +50,21 @@ def make_fake_groq_response(
     )
 
 
-@pytest.mark.parametrize("domain", SUPPORTED_DOMAINS)
+# ============================================================
+# DOMAIN TESTS
+# ============================================================
+
+@pytest.mark.parametrize(
+    "domain",
+    SUPPORTED_DOMAINS,
+)
 def test_supported_domains(domain):
-    """Every project domain should create successfully."""
+    """All four supported domains should initialize correctly."""
 
     agent = GroqDomainAgent(
         domain=domain,
         api_key="test-api-key",
+        model="openai/gpt-oss-20b",
     )
 
     assert agent.DOMAIN == domain
@@ -64,7 +72,7 @@ def test_supported_domains(domain):
 
 
 def test_invalid_domain():
-    """Unsupported domains should raise an error."""
+    """Unsupported domains should raise ValueError."""
 
     with pytest.raises(ValueError):
         GroqDomainAgent(
@@ -72,6 +80,10 @@ def test_invalid_domain():
             api_key="test-api-key",
         )
 
+
+# ============================================================
+# INPUT VALIDATION
+# ============================================================
 
 def test_empty_question():
     """An empty question should be rejected."""
@@ -86,11 +98,13 @@ def test_empty_question():
             question="",
             retrieved_knowledge=[
                 {
-                    "chunk_text": "IT support information.",
-                    "document_name": "IT Guide",
+                    "text": "IT support information.",
+                    "source_title": "IT Guide",
                     "page": 1,
                     "section": "Support",
                     "source_url": "https://example.com",
+                    "relevance_score": 0.90,
+                    "domain": "IT",
                 }
             ],
         )
@@ -98,7 +112,7 @@ def test_empty_question():
 
 def test_empty_retrieval():
     """
-    No retrieved knowledge means we should not call Groq.
+    If retrieval returns no knowledge, Groq should not be called.
     """
 
     agent = GroqDomainAgent(
@@ -115,28 +129,40 @@ def test_empty_retrieval():
 
     assert result.confidence == 0.0
     assert result.sources == []
-    assert "don't have enough retrieved" in result.answer
+
+    assert (
+        "don't have enough retrieved"
+        in result.answer
+    )
 
     agent.client.chat.completions.create.assert_not_called()
 
 
+# ============================================================
+# GROQ RESPONSE TEST
+# ============================================================
+
 def test_generate_grounded_answer():
-    """A normal retrieved context should produce an AgentResponse."""
+    """
+    A normal retrieved context should produce
+    an AgentResponse with answer, sources and confidence.
+    """
 
     agent = GroqDomainAgent(
         domain="IT",
         api_key="test-api-key",
+        model="openai/gpt-oss-20b",
     )
 
     fake_response = make_fake_groq_response(
         answer=(
-            "Students should contact the university IT helpdesk "
-            "for Wi-Fi assistance."
+            "Students should contact the university IT "
+            "helpdesk for Wi-Fi assistance."
         ),
         confidence=0.95,
         sources=[
             {
-                "document_name": "IT Support Guide",
+                "source_title": "IT Support Guide",
                 "page": 2,
                 "section": "Wi-Fi Support",
                 "source_url": "https://www.bennett.edu.in/",
@@ -151,39 +177,62 @@ def test_generate_grounded_answer():
     )
 
     result = agent.generate_answer(
-        question="What should I do if Wi-Fi is not working?",
+        question=(
+            "What should I do if my university Wi-Fi "
+            "is not working?"
+        ),
         retrieved_knowledge=[
             {
-                "chunk_text": (
+                "text": (
                     "Students experiencing Wi-Fi connectivity "
                     "problems should contact the university "
                     "IT helpdesk for technical assistance."
                 ),
-                "document_name": "IT Support Guide",
+                "source_title": "IT Support Guide",
                 "page": 2,
                 "section": "Wi-Fi Support",
                 "source_url": "https://www.bennett.edu.in/",
+                "relevance_score": 0.95,
+                "domain": "IT",
             }
         ],
     )
 
     assert result.answer == (
-        "Students should contact the university IT helpdesk "
-        "for Wi-Fi assistance."
+        "Students should contact the university IT "
+        "helpdesk for Wi-Fi assistance."
     )
 
     assert result.confidence == 0.95
 
     assert len(result.sources) == 1
-    assert result.sources[0]["document_name"] == (
+
+    assert result.sources[0]["source_title"] == (
         "IT Support Guide"
+    )
+
+    assert result.sources[0]["page"] == 2
+
+    assert result.sources[0]["section"] == (
+        "Wi-Fi Support"
+    )
+
+    assert result.sources[0]["source_url"] == (
+        "https://www.bennett.edu.in/"
     )
 
     agent.client.chat.completions.create.assert_called_once()
 
 
+# ============================================================
+# CONVERSATION TEST
+# ============================================================
+
 def test_conversation_context_is_included():
-    """Conversation history should be included in the user prompt."""
+    """
+    Conversation history should be included
+    in the user prompt.
+    """
 
     agent = GroqDomainAgent(
         domain="IT",
@@ -194,11 +243,13 @@ def test_conversation_context_is_included():
         question="What should I do next?",
         retrieved_knowledge=[
             {
-                "chunk_text": "Contact IT support.",
-                "document_name": "IT Guide",
+                "text": "Contact IT support.",
+                "source_title": "IT Guide",
                 "page": 1,
                 "section": "Support",
                 "source_url": None,
+                "relevance_score": 0.90,
+                "domain": "IT",
             }
         ],
         conversation_context=[
@@ -208,30 +259,30 @@ def test_conversation_context_is_included():
             },
             {
                 "role": "assistant",
-                "content": "Please describe the problem.",
+                "content": (
+                    "Please describe the problem."
+                ),
             },
         ],
     )
 
     assert "My Wi-Fi stopped working." in prompt
-    assert "Please describe the problem." in prompt
 
-
-def test_confidence_is_normalized():
-    """Confidence should always remain between 0 and 1."""
-
-    agent = GroqDomainAgent(
-        domain="IT",
-        api_key="test-api-key",
+    assert (
+        "Please describe the problem."
+        in prompt
     )
 
-    assert agent._normalize_confidence(0.5) == 0.5
-    assert agent._normalize_confidence(-1) == 0.0
-    assert agent._normalize_confidence(2) == 1.0
-    assert agent._normalize_confidence(None) is None
+
+# ============================================================
+# RETRIEVAL CONTRACT TEST
+# ============================================================
 
 def test_retrieved_knowledge_is_included_in_prompt():
-    """Retrieved Bennett content must reach the LLM prompt."""
+    """
+    Every important field from the retriever contract
+    should reach the LLM prompt.
+    """
 
     agent = GroqDomainAgent(
         domain="IT",
@@ -240,23 +291,147 @@ def test_retrieved_knowledge_is_included_in_prompt():
 
     retrieved_knowledge = [
         {
-            "chunk_text": (
+            "text": (
                 "Students should contact the IT helpdesk "
                 "for Wi-Fi connectivity issues."
             ),
-            "document_name": "IT Support Guide",
+            "source_title": "IT Support Guide",
             "page": 2,
             "section": "Wi-Fi Support",
             "source_url": "https://www.bennett.edu.in/",
+            "relevance_score": 0.95,
+            "domain": "IT",
         }
     ]
 
     prompt = agent.build_user_prompt(
-        question="My Wi-Fi is not working. What should I do?",
+        question=(
+            "My Wi-Fi is not working. "
+            "What should I do?"
+        ),
         retrieved_knowledge=retrieved_knowledge,
     )
 
+    # Text
+    assert (
+        "Students should contact the IT helpdesk"
+        in prompt
+    )
+
+    # Source metadata
     assert "IT Support Guide" in prompt
     assert "Wi-Fi Support" in prompt
-    assert "Students should contact the IT helpdesk" in prompt
     assert "https://www.bennett.edu.in/" in prompt
+
+    # Retrieval metadata
+    assert "0.95" in prompt
+    assert "IT" in prompt
+
+
+# ============================================================
+# CONFIDENCE TESTS
+# ============================================================
+
+def test_confidence_is_normalized():
+    """
+    Confidence must always remain between 0 and 1.
+    """
+
+    agent = GroqDomainAgent(
+        domain="IT",
+        api_key="test-api-key",
+    )
+
+    assert (
+        agent._normalize_confidence(0.5)
+        == 0.5
+    )
+
+    assert (
+        agent._normalize_confidence(-1)
+        == 0.0
+    )
+
+    assert (
+        agent._normalize_confidence(2)
+        == 1.0
+    )
+
+    assert (
+        agent._normalize_confidence(None)
+        is None
+    )
+
+
+# ============================================================
+# SOURCE HANDLING TEST
+# ============================================================
+
+def test_multiple_sources_are_preserved():
+    """
+    Multiple sources returned by Groq should be
+    preserved by the agent.
+    """
+
+    agent = GroqDomainAgent(
+        domain="FEES",
+        api_key="test-api-key",
+        model="openai/gpt-oss-20b",
+    )
+
+    fake_response = make_fake_groq_response(
+        answer=(
+            "The fee information is available in the "
+            "official university documentation."
+        ),
+        confidence=0.88,
+        sources=[
+            {
+                "source_title": "Fee Structure",
+                "page": 5,
+                "section": "Tuition Fees",
+                "source_url": "https://example.com/fees",
+            },
+            {
+                "source_title": "Payment Guidelines",
+                "page": 3,
+                "section": "Payment Process",
+                "source_url": "https://example.com/payment",
+            },
+        ],
+    )
+
+    agent.client = MagicMock()
+
+    agent.client.chat.completions.create.return_value = (
+        fake_response
+    )
+
+    result = agent.generate_answer(
+        question="Where can I find fee information?",
+        retrieved_knowledge=[
+            {
+                "text": "Fee information is documented here.",
+                "source_title": "Fee Structure",
+                "page": 5,
+                "section": "Tuition Fees",
+                "source_url": "https://example.com/fees",
+                "relevance_score": 0.91,
+                "domain": "FEES",
+            }
+        ],
+    )
+
+    assert len(result.sources) == 2
+
+    assert (
+        result.sources[0]["source_title"]
+        == "Fee Structure"
+    )
+
+    assert (
+        result.sources[1]["source_title"]
+        == "Payment Guidelines"
+    )
+
+    assert result.confidence == 0.88
