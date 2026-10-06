@@ -56,7 +56,6 @@ INTENT_RULES = {
             "academic calendar": 3,
             "calendar": 2,
             "semester start": 3,
-            "semester": 1,
         },
         "exam_information": {
             "exam": 3,
