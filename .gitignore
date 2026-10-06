@@ -27,3 +27,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Generated FAISS vector stores
+data/processed/vector_store_test/
+data/processed/vector_stores/
