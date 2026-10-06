@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-mistralai
+groq
 python-dotenv
 pydantic
 pymupdf
@@ -9,3 +9,4 @@ faiss-cpu
 pandas
 pytest
 httpx
+dotenv
