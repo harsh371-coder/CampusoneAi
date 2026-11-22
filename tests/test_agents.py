@@ -162,7 +162,7 @@ def test_generate_grounded_answer():
         confidence=0.95,
         sources=[
             {
-                "source_title": "IT Support Guide",
+                "document_name": "IT Support Guide",
                 "page": 2,
                 "section": "Wi-Fi Support",
                 "source_url": "https://www.bennett.edu.in/",
@@ -207,7 +207,7 @@ def test_generate_grounded_answer():
 
     assert len(result.sources) == 1
 
-    assert result.sources[0]["source_title"] == (
+    assert result.sources[0]["document_name"] == (
         "IT Support Guide"
     )
 
@@ -387,13 +387,13 @@ def test_multiple_sources_are_preserved():
         confidence=0.88,
         sources=[
             {
-                "source_title": "Fee Structure",
+                "document_name": "Fee Structure",
                 "page": 5,
                 "section": "Tuition Fees",
                 "source_url": "https://example.com/fees",
             },
             {
-                "source_title": "Payment Guidelines",
+                "document_name": "Payment Guidelines",
                 "page": 3,
                 "section": "Payment Process",
                 "source_url": "https://example.com/payment",
@@ -425,12 +425,12 @@ def test_multiple_sources_are_preserved():
     assert len(result.sources) == 2
 
     assert (
-        result.sources[0]["source_title"]
+        result.sources[0]["document_name"]
         == "Fee Structure"
     )
 
     assert (
-        result.sources[1]["source_title"]
+        result.sources[1]["document_name"]
         == "Payment Guidelines"
     )
 
