@@ -372,7 +372,7 @@ Confidence guidelines:
             )
 
             relevance_score = chunk.get(
-                "relevance_score",
+                "score",
             )
 
             domain = chunk.get(
